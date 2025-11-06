@@ -31,10 +31,11 @@ const Laundry = () => {
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(selectedWeek, i));
   const weekStart = format(selectedWeek, 'MMM d');
   const weekEnd = format(addDays(selectedWeek, 6), 'MMM d, yyyy');
+  const weekISO = `${getYear(selectedWeek)}-W${String(getISOWeek(selectedWeek)).padStart(2, '0')}`;
 
   // Fetch slots
   const { data: slots, isLoading: slotsLoading } = useQuery({
-    queryKey: ['slots', selectedResource],
+    queryKey: ['slots', selectedResource, weekISO],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('slots')
@@ -50,7 +51,7 @@ const Laundry = () => {
 
   // Fetch bookings for the week
   const { data: bookings } = useQuery({
-    queryKey: ['bookings', selectedWeek, selectedResource],
+    queryKey: ['bookings', selectedResource, selectedWeek],
     queryFn: async () => {
       const weekStart = format(selectedWeek, 'yyyy-MM-dd');
       const weekEnd = format(addDays(selectedWeek, 6), 'yyyy-MM-dd');
@@ -71,7 +72,7 @@ const Laundry = () => {
   // ✅ Fetch user's weekly bookings to calculate total units used
   // LAV bookings can use 1 or 2 units (washers)
   const { data: weeklyBookings } = useQuery({
-    queryKey: ['weeklyBookings', user?.id, selectedWeek, selectedResource],
+    queryKey: ['bookings', 'me', weekISO],
     queryFn: async () => {
       if (!user) return [];
       const weekStart = format(selectedWeek, 'yyyy-MM-dd');
@@ -190,11 +191,11 @@ const Laundry = () => {
     },
     onSuccess: () => {
       toast.success(t('laundry.bookingSuccess'));
-      // ✅ Invalidate ALL related queries to refresh counters
-      queryClient.invalidateQueries({ queryKey: ['bookings'] });
-      queryClient.invalidateQueries({ queryKey: ['weeklyBookings'] });
+      // ✅ Invalidate using consistent query key pattern
+      queryClient.invalidateQueries({ queryKey: ['slots', selectedResource, weekISO] });
+      queryClient.invalidateQueries({ queryKey: ['bookings', selectedResource] });
+      queryClient.invalidateQueries({ queryKey: ['bookings', 'me', weekISO] });
       queryClient.invalidateQueries({ queryKey: ['quota'] });
-      queryClient.invalidateQueries({ queryKey: ['slots'] });
     },
     onError: (error: any) => {
       toast.error(error.message || t('laundry.bookingError'));
@@ -219,11 +220,11 @@ const Laundry = () => {
     },
     onSuccess: () => {
       toast.success(t('laundry.cancelSuccess'));
-      // ✅ Invalidate ALL related queries to update counters and availability
-      queryClient.invalidateQueries({ queryKey: ['bookings'] });
-      queryClient.invalidateQueries({ queryKey: ['weeklyBookings'] });
+      // ✅ Invalidate using consistent query key pattern
+      queryClient.invalidateQueries({ queryKey: ['slots', selectedResource, weekISO] });
+      queryClient.invalidateQueries({ queryKey: ['bookings', selectedResource] });
+      queryClient.invalidateQueries({ queryKey: ['bookings', 'me', weekISO] });
       queryClient.invalidateQueries({ queryKey: ['quota'] });
-      queryClient.invalidateQueries({ queryKey: ['slots'] });
     },
     onError: (error: any) => {
       toast.error(error.message || t('laundry.cancelError'));

@@ -23,10 +23,11 @@ const Gym = () => {
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(selectedWeek, i));
   const weekStart = format(selectedWeek, 'MMM d');
   const weekEnd = format(addDays(selectedWeek, 6), 'MMM d, yyyy');
+  const weekISO = `${getYear(selectedWeek)}-W${String(getISOWeek(selectedWeek)).padStart(2, '0')}`;
 
-  // Fetch gym slots
-  const { data: slots, isLoading } = useQuery({
-    queryKey: ['gymSlots'],
+  // ✅ Fetch gym slots (using consistent query key pattern)
+  const { data: slots, isLoading: slotsLoading } = useQuery({
+    queryKey: ['slots', 'GYM', weekISO],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('slots')
@@ -40,9 +41,9 @@ const Gym = () => {
     },
   });
 
-  // Fetch bookings
+  // ✅ Fetch all gym bookings for the week (for cell counters)
   const { data: bookings } = useQuery({
-    queryKey: ['gymBookings', selectedWeek],
+    queryKey: ['bookings', 'GYM', selectedWeek],
     queryFn: async () => {
       const dateStart = format(selectedWeek, 'yyyy-MM-dd');
       const dateEnd = format(addDays(selectedWeek, 6), 'yyyy-MM-dd');
@@ -60,9 +61,9 @@ const Gym = () => {
     },
   });
 
-  // ✅ Check user's gym bookings for the week (up to 4 allowed)
+  // ✅ Fetch user's gym bookings for the week (for 4/week quota check)
   const { data: weeklyBookings } = useQuery({
-    queryKey: ['weeklyGymBookings', user?.id, selectedWeek],
+    queryKey: ['bookings', 'me', weekISO],
     queryFn: async () => {
       if (!user) return [];
       
@@ -151,10 +152,10 @@ const Gym = () => {
     },
     onSuccess: () => {
       toast.success(t('gym.bookingSuccess'));
-      // ✅ Invalidate ALL gym queries to refresh counters and availability
-      queryClient.invalidateQueries({ queryKey: ['gymBookings'] });
-      queryClient.invalidateQueries({ queryKey: ['weeklyGymBookings'] });
-      queryClient.invalidateQueries({ queryKey: ['gymSlots'] });
+      // ✅ Invalidate using consistent query key pattern
+      queryClient.invalidateQueries({ queryKey: ['slots', 'GYM', weekISO] });
+      queryClient.invalidateQueries({ queryKey: ['bookings', 'GYM'] });
+      queryClient.invalidateQueries({ queryKey: ['bookings', 'me', weekISO] });
     },
     onError: (error: any) => {
       toast.error(error.message || t('gym.bookingError'));
@@ -178,10 +179,10 @@ const Gym = () => {
     },
     onSuccess: () => {
       toast.success(t('gym.cancelSuccess'));
-      // ✅ Invalidate ALL gym queries to update counters and free the slot
-      queryClient.invalidateQueries({ queryKey: ['gymBookings'] });
-      queryClient.invalidateQueries({ queryKey: ['weeklyGymBookings'] });
-      queryClient.invalidateQueries({ queryKey: ['gymSlots'] });
+      // ✅ Invalidate using consistent query key pattern
+      queryClient.invalidateQueries({ queryKey: ['slots', 'GYM', weekISO] });
+      queryClient.invalidateQueries({ queryKey: ['bookings', 'GYM'] });
+      queryClient.invalidateQueries({ queryKey: ['bookings', 'me', weekISO] });
     },
     onError: (error: any) => {
       toast.error(error.message || t('gym.cancelError'));
@@ -196,9 +197,19 @@ const Gym = () => {
     );
   };
 
+  // ✅ Helper: Get count of bookings (capacity taken) for a slot
+  const getTakenCount = (slotId: string, date: Date) => {
+    return getBookingsForSlot(slotId, date).length;
+  };
+
   // ✅ Helper: Check if current user has booked this gym slot
   const hasUserBooked = (slotId: string, date: Date) => {
     return getBookingsForSlot(slotId, date).some(b => b.user_id === user?.id);
+  };
+
+  // ✅ Helper: Get user's booking for a specific slot
+  const getUserBooking = (slotId: string, date: Date) => {
+    return getBookingsForSlot(slotId, date).find(b => b.user_id === user?.id);
   };
 
   // ✅ Helper: Check if date is today (for highlighting)
@@ -214,6 +225,8 @@ const Gym = () => {
 
   // ✅ Use centralized slot schedule (10 slots, 90 min each, ending at 23:00)
   const timeSlots = dailySlots90EndAt23();
+
+  const isLoading = slotsLoading;
 
   return (
     <Layout>
@@ -314,11 +327,11 @@ const Gym = () => {
                               return <td key={day.toISOString()} className="p-3 bg-muted/20"></td>;
                             }
                             
-                            const slotBookings = getBookingsForSlot(slot.id, day);
                             const capacity = slot.capacity || 6; // Use DB capacity, default 6 for gym
-                            const isFull = slotBookings.length >= capacity;
+                            const taken = getTakenCount(slot.id, day);
+                            const isFull = taken >= capacity;
                             const userHasBooked = hasUserBooked(slot.id, day);
-                            const userBooking = slotBookings.find(b => b.user_id === user?.id);
+                            const userBooking = getUserBooking(slot.id, day);
                             const slotIsPast = isSlotPast(day, timeSlot.end);
 
                             return (
@@ -360,12 +373,12 @@ const Gym = () => {
                                   >
                                     {createBooking.isPending ? (
                                       <span className="flex items-center gap-1">
-                                        <Loader2 className="h-3 w-3 animate-spin" />
-                                        Booking...
-                                      </span>
-                                    ) : (
-                                      `Book (${slotBookings.length}/${capacity})`
-                                    )}
+                                      <Loader2 className="h-3 w-3 animate-spin" />
+                                      Booking...
+                                    </span>
+                                  ) : (
+                                    `Book (${taken}/${capacity})`
+                                  )}
                                   </Button>
                                 )}
                               </td>
