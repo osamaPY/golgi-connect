@@ -9,9 +9,15 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
 import { toast } from 'sonner';
 import { format, startOfWeek, addDays, addWeeks, subWeeks, getISOWeek, getYear } from 'date-fns';
-import { Loader2, Droplet, Wind, ChevronLeft, ChevronRight, Info } from 'lucide-react';
+import { Loader2, Droplet, Wind, ChevronLeft, ChevronRight, Info, ChevronDown } from 'lucide-react';
 
 const Laundry = () => {
   const { user } = useAuth();
@@ -61,6 +67,33 @@ const Laundry = () => {
     },
   });
 
+  // ✅ Fetch user's weekly bookings to calculate total units used
+  // LAV bookings can use 1 or 2 units (washers)
+  const { data: weeklyBookings } = useQuery({
+    queryKey: ['weeklyBookings', user?.id, selectedWeek, selectedResource],
+    queryFn: async () => {
+      if (!user) return [];
+      const weekStart = format(selectedWeek, 'yyyy-MM-dd');
+      const weekEnd = format(addDays(selectedWeek, 6), 'yyyy-MM-dd');
+      
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('resource_type', selectedResource)
+        .eq('status', 'booked')
+        .gte('booking_date', weekStart)
+        .lte('booking_date', weekEnd);
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
+  // ✅ Calculate total units used this week (LAV counts units, ASC counts bookings)
+  const weeklyUnitsUsed = weeklyBookings?.reduce((sum, b) => sum + (b.units || 1), 0) || 0;
+
   // Fetch user's weekly quota
   const { data: quota } = useQuery({
     queryKey: ['quota', user?.id, selectedWeek],
@@ -83,19 +116,21 @@ const Laundry = () => {
     enabled: !!user,
   });
 
-  // ✅ Create booking mutation - IDEMPOTENT DESIGN
-  // Handles duplicate bookings gracefully - if user already booked this slot, treat as success
-  // Server-side validation enforced by unique constraint prevents race conditions
+  // ✅ Create booking mutation - IDEMPOTENT DESIGN with units support
+  // LAV can book 1 or 2 washers, ASC always 1 dryer
+  // Weekly quota: LAV ≤ 3 units, ASC ≤ 2 bookings
   const createBooking = useMutation({
-    mutationFn: async ({ slotId, date }: { slotId: string; date: Date }) => {
+    mutationFn: async ({ slotId, date, units = 1 }: { slotId: string; date: Date; units?: number }) => {
       if (!user) throw new Error('Not authenticated');
       
-      // ✅ Check weekly quota before booking (LAV: max 3, ASC: max 2)
-      const currentCount = selectedResource === 'LAV' ? (quota?.lav_count || 0) : (quota?.asc_count || 0);
-      const maxCount = selectedResource === 'LAV' ? 3 : 2;
+      // ✅ Check weekly quota before booking
+      // LAV: max 3 units/week (booking both washers counts as 2)
+      // ASC: max 2 bookings/week
+      const maxQuota = selectedResource === 'LAV' ? 3 : 2;
       
-      if (currentCount >= maxCount) {
-        throw new Error(`Weekly quota exceeded: max ${maxCount} ${selectedResource} per week`);
+      if (weeklyUnitsUsed + units > maxQuota) {
+        const label = selectedResource === 'LAV' ? 'washer units' : 'dryer bookings';
+        throw new Error(`Weekly quota exceeded: max ${maxQuota} ${label} per week`);
       }
       
       const bookingDate = format(date, 'yyyy-MM-dd');
@@ -116,7 +151,7 @@ const Laundry = () => {
         return existing;
       }
       
-      // ✅ Try to insert new booking
+      // ✅ Try to insert new booking with specified units
       const { data, error } = await supabase
         .from('bookings')
         .insert({
@@ -124,6 +159,7 @@ const Laundry = () => {
           slot_id: slotId,
           booking_date: bookingDate,
           resource_type: selectedResource,
+          units: units,
           status: 'booked',
         })
         .select()
@@ -155,6 +191,7 @@ const Laundry = () => {
       toast.success(t('laundry.bookingSuccess'));
       // ✅ Invalidate ALL related queries to refresh counters
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['weeklyBookings'] });
       queryClient.invalidateQueries({ queryKey: ['quota'] });
       queryClient.invalidateQueries({ queryKey: ['slots'] });
     },
@@ -165,7 +202,7 @@ const Laundry = () => {
 
   // ✅ Cancel booking mutation
   // Updates booking status to 'cancelled' and records who cancelled it
-  // This allows users to "undo" their bookings and free up capacity
+  // This frees up all units (1 or 2) from that booking
   const cancelBooking = useMutation({
     mutationFn: async (bookingId: string) => {
       const { error } = await supabase
@@ -183,6 +220,7 @@ const Laundry = () => {
       toast.success(t('laundry.cancelSuccess'));
       // ✅ Invalidate ALL related queries to update counters and availability
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      queryClient.invalidateQueries({ queryKey: ['weeklyBookings'] });
       queryClient.invalidateQueries({ queryKey: ['quota'] });
       queryClient.invalidateQueries({ queryKey: ['slots'] });
     },
@@ -199,17 +237,27 @@ const Laundry = () => {
     );
   };
 
+  // ✅ Helper: Calculate total units taken for a slot (sum of all booking units)
+  const getTakenUnits = (slotId: string, date: Date) => {
+    const slotBookings = getBookingsForSlot(slotId, date);
+    return slotBookings.reduce((sum, b) => sum + (b.units || 1), 0);
+  };
+
   // ✅ Helper: Check if user can book based on weekly quota
-  const canBook = () => {
-    if (!quota) return true;
-    if (selectedResource === 'LAV') return quota.lav_count < 3;
-    if (selectedResource === 'ASC') return quota.asc_count < 2;
-    return false;
+  // LAV: max 3 units/week, ASC: max 2 bookings/week
+  const canBookUnits = (units: number) => {
+    const maxQuota = selectedResource === 'LAV' ? 3 : 2;
+    return weeklyUnitsUsed + units <= maxQuota;
   };
 
   // ✅ Helper: Check if current user has booked this slot
   const hasUserBooked = (slotId: string, date: Date) => {
     return getBookingsForSlot(slotId, date).some(b => b.user_id === user?.id);
+  };
+
+  // ✅ Helper: Get user's booking for a specific slot
+  const getUserBooking = (slotId: string, date: Date) => {
+    return getBookingsForSlot(slotId, date).find(b => b.user_id === user?.id);
   };
 
   // ✅ Helper: Check if date is today
@@ -267,15 +315,19 @@ const Laundry = () => {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               {t('laundry.weeklyQuota')}
-              <Badge variant={canBook() ? 'default' : 'destructive'}>
+              <Badge variant={canBookUnits(1) ? 'default' : 'destructive'}>
                 {selectedResource === 'LAV' 
-                  ? `${quota?.lav_count || 0}/3 ${t('laundry.washers')}` 
-                  : `${quota?.asc_count || 0}/2 ${t('laundry.dryers')}`}
+                  ? `${weeklyUnitsUsed}/3 ${t('laundry.washers')} units` 
+                  : `${weeklyUnitsUsed}/2 ${t('laundry.dryers')}`}
               </Badge>
             </CardTitle>
             <CardDescription className="flex items-start gap-2">
               <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
-              <span>Maximum 3 washers (LAV) and 2 dryers (ASC) per week. Cancel slots you can't use.</span>
+              <span>
+                {selectedResource === 'LAV' 
+                  ? 'Maximum 3 washer units per week. Booking both washers counts as 2 units.' 
+                  : 'Maximum 2 dryer bookings per week.'} Cancel slots you can't use.
+              </span>
             </CardDescription>
           </CardHeader>
         </Card>
@@ -338,15 +390,17 @@ const Laundry = () => {
                               
                               const slotBookings = getBookingsForSlot(slot.id, day);
                               const capacity = selectedResource === 'LAV' ? 2 : 1;
-                              const isFull = slotBookings.length >= capacity;
+                              const takenUnits = getTakenUnits(slot.id, day);
+                              const isFull = takenUnits >= capacity;
                               const userHasBooked = hasUserBooked(slot.id, day);
-                              const userBooking = slotBookings.find(b => b.user_id === user?.id);
+                              const userBooking = getUserBooking(slot.id, day);
                               const isSlotPast = isPast(day, slot);
+                              const availableUnits = capacity - takenUnits;
 
                               return (
                                 <td key={day.toISOString()} className="p-3">
                                   {userHasBooked ? (
-                                    // ✅ USER'S BOOKING - Show "Cancel (You)" button with amber background
+                                    // ✅ USER'S BOOKING - Show "Cancel (You)" with units
                                     <Button
                                       variant="outline"
                                       size="sm"
@@ -357,7 +411,7 @@ const Laundry = () => {
                                       {isSlotPast ? 'Past' : (
                                         <span className="flex items-center gap-1">
                                           <span className="h-2 w-2 rounded-full bg-amber-600"></span>
-                                          Cancel (You)
+                                          Cancel (You{selectedResource === 'LAV' && userBooking?.units ? ` – ${userBooking.units}` : ''})
                                         </span>
                                       )}
                                     </Button>
@@ -371,14 +425,52 @@ const Laundry = () => {
                                     <Badge variant="secondary" className="w-full justify-center bg-red-100 text-red-700 border-red-200">
                                       Full ({capacity}/{capacity})
                                     </Badge>
+                                  ) : selectedResource === 'LAV' ? (
+                                    // ✅ LAV: Dropdown to book 1 or 2 washers
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="w-full bg-green-100 hover:bg-green-200 border-green-300 text-green-900"
+                                          disabled={createBooking.isPending || !canBookUnits(1)}
+                                        >
+                                          {createBooking.isPending ? (
+                                            <span className="flex items-center gap-1">
+                                              <Loader2 className="h-3 w-3 animate-spin" />
+                                              Booking...
+                                            </span>
+                                          ) : (
+                                            <span className="flex items-center justify-between w-full">
+                                              <span>Book ({takenUnits}/{capacity})</span>
+                                              <ChevronDown className="h-3 w-3" />
+                                            </span>
+                                          )}
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent align="center">
+                                        <DropdownMenuItem
+                                          onClick={() => createBooking.mutate({ slotId: slot.id, date: day, units: 1 })}
+                                          disabled={!canBookUnits(1) || availableUnits < 1}
+                                        >
+                                          Book 1 washer
+                                        </DropdownMenuItem>
+                                        <DropdownMenuItem
+                                          onClick={() => createBooking.mutate({ slotId: slot.id, date: day, units: 2 })}
+                                          disabled={!canBookUnits(2) || availableUnits < 2}
+                                        >
+                                          Book both (2)
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
                                   ) : (
-                                    // ✅ AVAILABLE SLOT - Green "Book" button with live counter
+                                    // ✅ ASC: Simple book button (always 1 unit)
                                     <Button
                                       variant="outline"
                                       size="sm"
                                       className="w-full bg-green-100 hover:bg-green-200 border-green-300 text-green-900"
-                                      onClick={() => createBooking.mutate({ slotId: slot.id, date: day })}
-                                      disabled={!canBook() || createBooking.isPending}
+                                      onClick={() => createBooking.mutate({ slotId: slot.id, date: day, units: 1 })}
+                                      disabled={!canBookUnits(1) || createBooking.isPending}
                                     >
                                       {createBooking.isPending ? (
                                         <span className="flex items-center gap-1">
@@ -386,7 +478,7 @@ const Laundry = () => {
                                           Booking...
                                         </span>
                                       ) : (
-                                        `Book (${slotBookings.length}/${capacity})`
+                                        `Book (${takenUnits}/${capacity})`
                                       )}
                                     </Button>
                                   )}
@@ -402,28 +494,36 @@ const Laundry = () => {
               </div>
             )}
 
-            {/* Legend with color-coded examples */}
+            {/* Legend with color-coded examples and booking info */}
             <Card>
               <CardContent className="pt-6">
-                <div className="flex flex-wrap gap-4 text-sm">
-                  <div className="flex items-center gap-2">
-                    <div className="w-16 h-8 rounded border border-amber-300 bg-amber-100 flex items-center justify-center">
-                      <span className="h-2 w-2 rounded-full bg-amber-600"></span>
+                <div className="space-y-4">
+                  <div className="flex flex-wrap gap-4 text-sm">
+                    <div className="flex items-center gap-2">
+                      <div className="w-16 h-8 rounded border border-amber-300 bg-amber-100 flex items-center justify-center">
+                        <span className="h-2 w-2 rounded-full bg-amber-600"></span>
+                      </div>
+                      <span className="font-medium">Your booking (click to cancel)</span>
                     </div>
-                    <span className="font-medium">Your booking (click to cancel)</span>
+                    <div className="flex items-center gap-2">
+                      <div className="w-16 h-8 rounded border border-green-300 bg-green-100"></div>
+                      <span>Available (click to book)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-16 h-8 rounded border border-red-200 bg-red-100"></div>
+                      <span>Full</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="w-16 h-8 rounded border border-gray-200 bg-gray-100"></div>
+                      <span>Past / Closed</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-16 h-8 rounded border border-green-300 bg-green-100"></div>
-                    <span>Available (click to book)</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-16 h-8 rounded border border-red-200 bg-red-100"></div>
-                    <span>Full</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="w-16 h-8 rounded border border-gray-200 bg-gray-100"></div>
-                    <span>Past / Closed</span>
-                  </div>
+                  {selectedResource === 'LAV' && (
+                    <div className="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
+                      <strong>LAV Tip:</strong> Click the dropdown arrow to choose between booking 1 washer or both (2). 
+                      Booking both counts as 2 units toward your weekly limit of 3.
+                    </div>
+                  )}
                 </div>
               </CardContent>
             </Card>

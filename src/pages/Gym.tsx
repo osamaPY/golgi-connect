@@ -59,13 +59,14 @@ const Gym = () => {
     },
   });
 
-  // Check user's active gym bookings
-  const { data: activeBookings } = useQuery({
-    queryKey: ['activeGymBookings', user?.id],
+  // ✅ Check user's gym bookings for the week (up to 4 allowed)
+  const { data: weeklyBookings } = useQuery({
+    queryKey: ['weeklyGymBookings', user?.id, selectedWeek],
     queryFn: async () => {
       if (!user) return [];
       
-      const today = format(new Date(), 'yyyy-MM-dd');
+      const weekStart = format(selectedWeek, 'yyyy-MM-dd');
+      const weekEnd = format(addDays(selectedWeek, 6), 'yyyy-MM-dd');
       
       const { data, error } = await supabase
         .from('bookings')
@@ -73,7 +74,8 @@ const Gym = () => {
         .eq('user_id', user.id)
         .eq('resource_type', 'GYM')
         .eq('status', 'booked')
-        .gte('booking_date', today);
+        .gte('booking_date', weekStart)
+        .lte('booking_date', weekEnd);
       
       if (error) throw error;
       return data;
@@ -82,15 +84,15 @@ const Gym = () => {
   });
 
   // ✅ Create gym booking mutation - IDEMPOTENT DESIGN
-  // Enforces maximum 1 active future gym booking per user
+  // Enforces maximum 4 gym bookings per ISO week per user
   // Handles duplicate bookings gracefully (idempotent)
   const createBooking = useMutation({
     mutationFn: async ({ slotId, date }: { slotId: string; date: Date }) => {
       if (!user) throw new Error('Not authenticated');
       
-      // ✅ Enforce gym rule: max 1 active future booking per user
-      if (activeBookings && activeBookings.length >= 1) {
-        throw new Error('You can only have 1 active gym booking at a time. Cancel your existing booking first.');
+      // ✅ Enforce gym rule: max 4 bookings per ISO week
+      if (weeklyBookings && weeklyBookings.length >= 4) {
+        throw new Error('You can only have 4 gym bookings per week. Cancel an existing booking first.');
       }
       
       const bookingDate = format(date, 'yyyy-MM-dd');
@@ -111,7 +113,7 @@ const Gym = () => {
         return existing;
       }
       
-      // ✅ Try to insert new booking
+      // ✅ Try to insert new booking (units always 1 for GYM)
       const { data, error } = await supabase
         .from('bookings')
         .insert({
@@ -119,6 +121,7 @@ const Gym = () => {
           slot_id: slotId,
           booking_date: bookingDate,
           resource_type: 'GYM',
+          units: 1,
           status: 'booked',
         })
         .select()
@@ -149,7 +152,7 @@ const Gym = () => {
       toast.success(t('gym.bookingSuccess'));
       // ✅ Invalidate ALL gym queries to refresh counters and availability
       queryClient.invalidateQueries({ queryKey: ['gymBookings'] });
-      queryClient.invalidateQueries({ queryKey: ['activeGymBookings'] });
+      queryClient.invalidateQueries({ queryKey: ['weeklyGymBookings'] });
       queryClient.invalidateQueries({ queryKey: ['gymSlots'] });
     },
     onError: (error: any) => {
@@ -176,7 +179,7 @@ const Gym = () => {
       toast.success(t('gym.cancelSuccess'));
       // ✅ Invalidate ALL gym queries to update counters and free the slot
       queryClient.invalidateQueries({ queryKey: ['gymBookings'] });
-      queryClient.invalidateQueries({ queryKey: ['activeGymBookings'] });
+      queryClient.invalidateQueries({ queryKey: ['weeklyGymBookings'] });
       queryClient.invalidateQueries({ queryKey: ['gymSlots'] });
     },
     onError: (error: any) => {
@@ -212,9 +215,9 @@ const Gym = () => {
     return slotDateTime < now;
   };
 
-  // ✅ Helper: Check if user can book (must have < 1 active booking)
+  // ✅ Helper: Check if user can book (must have < 4 bookings this week)
   const canBook = () => {
-    return !activeBookings || activeBookings.length < 1;
+    return !weeklyBookings || weeklyBookings.length < 4;
   };
 
   // Group slots by time
@@ -257,18 +260,18 @@ const Gym = () => {
           </Button>
         </div>
 
-        {/* Active Bookings Card */}
+        {/* Weekly Bookings Card */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              Active Bookings
+              Weekly Bookings
               <Badge variant={canBook() ? 'default' : 'destructive'}>
-                {activeBookings?.length || 0}/1
+                {weeklyBookings?.length || 0}/4
               </Badge>
             </CardTitle>
             <CardDescription className="flex items-start gap-2">
               <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
-              <span>You can have 1 active gym booking at a time. Cancel your existing booking to book a new slot.</span>
+              <span>You can have up to 4 gym bookings per week. Cancel a booking to make a new reservation.</span>
             </CardDescription>
           </CardHeader>
         </Card>

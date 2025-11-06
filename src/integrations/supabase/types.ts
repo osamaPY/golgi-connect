@@ -58,6 +58,7 @@ export type Database = {
           resource_type: Database["public"]["Enums"]["resource_type"]
           slot_id: string
           status: Database["public"]["Enums"]["booking_status"] | null
+          units: number
           user_id: string
         }
         Insert: {
@@ -70,6 +71,7 @@ export type Database = {
           resource_type: Database["public"]["Enums"]["resource_type"]
           slot_id: string
           status?: Database["public"]["Enums"]["booking_status"] | null
+          units?: number
           user_id: string
         }
         Update: {
@@ -82,6 +84,7 @@ export type Database = {
           resource_type?: Database["public"]["Enums"]["resource_type"]
           slot_id?: string
           status?: Database["public"]["Enums"]["booking_status"] | null
+          units?: number
           user_id?: string
         }
         Relationships: [
