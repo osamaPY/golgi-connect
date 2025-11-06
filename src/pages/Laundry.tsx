@@ -83,9 +83,9 @@ const Laundry = () => {
     enabled: !!user,
   });
 
-  // ✅ Create booking mutation
-  // This handles laundry booking creation with client-side quota validation
-  // Server-side validation is enforced by unique constraint in DB
+  // ✅ Create booking mutation - IDEMPOTENT DESIGN
+  // Handles duplicate bookings gracefully - if user already booked this slot, treat as success
+  // Server-side validation enforced by unique constraint prevents race conditions
   const createBooking = useMutation({
     mutationFn: async ({ slotId, date }: { slotId: string; date: Date }) => {
       if (!user) throw new Error('Not authenticated');
@@ -98,28 +98,65 @@ const Laundry = () => {
         throw new Error(`Weekly quota exceeded: max ${maxCount} ${selectedResource} per week`);
       }
       
-      // ✅ Insert booking with ISO date format (YYYY-MM-DD)
-      // The unique constraint prevents duplicate bookings on same slot/date
+      const bookingDate = format(date, 'yyyy-MM-dd');
+      
+      // ✅ First check if user already has this booking
+      const { data: existing } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('slot_id', slotId)
+        .eq('booking_date', bookingDate)
+        .eq('resource_type', selectedResource)
+        .eq('status', 'booked')
+        .maybeSingle();
+      
+      // ✅ IDEMPOTENT: If already booked, return existing (no error)
+      if (existing) {
+        return existing;
+      }
+      
+      // ✅ Try to insert new booking
       const { data, error } = await supabase
         .from('bookings')
         .insert({
           user_id: user.id,
           slot_id: slotId,
-          booking_date: format(date, 'yyyy-MM-dd'),
+          booking_date: bookingDate,
           resource_type: selectedResource,
           status: 'booked',
         })
         .select()
         .single();
       
-      if (error) throw error;
+      // ✅ Handle duplicate key error gracefully (race condition)
+      if (error) {
+        // Code 23505 = unique_violation in PostgreSQL
+        if (error.code === '23505') {
+          // Another request created it - fetch and return
+          const { data: raceData } = await supabase
+            .from('bookings')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('slot_id', slotId)
+            .eq('booking_date', bookingDate)
+            .eq('resource_type', selectedResource)
+            .eq('status', 'booked')
+            .single();
+          
+          if (raceData) return raceData;
+        }
+        throw error;
+      }
+      
       return data;
     },
     onSuccess: () => {
       toast.success(t('laundry.bookingSuccess'));
-      // ✅ Invalidate queries to refresh UI counters immediately
+      // ✅ Invalidate ALL related queries to refresh counters
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
       queryClient.invalidateQueries({ queryKey: ['quota'] });
+      queryClient.invalidateQueries({ queryKey: ['slots'] });
     },
     onError: (error: any) => {
       toast.error(error.message || t('laundry.bookingError'));
@@ -128,20 +165,26 @@ const Laundry = () => {
 
   // ✅ Cancel booking mutation
   // Updates booking status to 'cancelled' and records who cancelled it
+  // This allows users to "undo" their bookings and free up capacity
   const cancelBooking = useMutation({
     mutationFn: async (bookingId: string) => {
       const { error } = await supabase
         .from('bookings')
-        .update({ status: 'cancelled', cancelled_by: user?.id, cancelled_at: new Date().toISOString() })
+        .update({ 
+          status: 'cancelled', 
+          cancelled_by: user?.id, 
+          cancelled_at: new Date().toISOString() 
+        })
         .eq('id', bookingId);
       
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success(t('laundry.cancelSuccess'));
-      // ✅ Refresh bookings and quota counts after cancellation
+      // ✅ Invalidate ALL related queries to update counters and availability
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
       queryClient.invalidateQueries({ queryKey: ['quota'] });
+      queryClient.invalidateQueries({ queryKey: ['slots'] });
     },
     onError: (error: any) => {
       toast.error(error.message || t('laundry.cancelError'));

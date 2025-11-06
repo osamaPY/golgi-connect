@@ -1,0 +1,17 @@
+{
+  "name": "Collegio Golgi Portal",
+  "short_name": "CG Portal",
+  "description": "Official resident portal for Collegio Camillo Golgi, Pavia",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#1e40af",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

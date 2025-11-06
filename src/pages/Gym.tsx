@@ -81,8 +81,9 @@ const Gym = () => {
     enabled: !!user,
   });
 
-  // ✅ Create gym booking mutation
+  // ✅ Create gym booking mutation - IDEMPOTENT DESIGN
   // Enforces maximum 1 active future gym booking per user
+  // Handles duplicate bookings gracefully (idempotent)
   const createBooking = useMutation({
     mutationFn: async ({ slotId, date }: { slotId: string; date: Date }) => {
       if (!user) throw new Error('Not authenticated');
@@ -92,27 +93,64 @@ const Gym = () => {
         throw new Error('You can only have 1 active gym booking at a time. Cancel your existing booking first.');
       }
       
-      // ✅ Insert booking with ISO date format
+      const bookingDate = format(date, 'yyyy-MM-dd');
+      
+      // ✅ Check if user already has this exact booking
+      const { data: existing } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('slot_id', slotId)
+        .eq('booking_date', bookingDate)
+        .eq('resource_type', 'GYM')
+        .eq('status', 'booked')
+        .maybeSingle();
+      
+      // ✅ IDEMPOTENT: If already booked, return existing (no error)
+      if (existing) {
+        return existing;
+      }
+      
+      // ✅ Try to insert new booking
       const { data, error } = await supabase
         .from('bookings')
         .insert({
           user_id: user.id,
           slot_id: slotId,
-          booking_date: format(date, 'yyyy-MM-dd'),
+          booking_date: bookingDate,
           resource_type: 'GYM',
           status: 'booked',
         })
         .select()
         .single();
       
-      if (error) throw error;
+      // ✅ Handle duplicate key error gracefully (race condition)
+      if (error) {
+        if (error.code === '23505') {
+          // Race condition - fetch the booking that was just created
+          const { data: raceData } = await supabase
+            .from('bookings')
+            .select('*')
+            .eq('user_id', user.id)
+            .eq('slot_id', slotId)
+            .eq('booking_date', bookingDate)
+            .eq('resource_type', 'GYM')
+            .eq('status', 'booked')
+            .single();
+          
+          if (raceData) return raceData;
+        }
+        throw error;
+      }
+      
       return data;
     },
     onSuccess: () => {
       toast.success(t('gym.bookingSuccess'));
-      // ✅ Refresh both queries to update UI immediately
+      // ✅ Invalidate ALL gym queries to refresh counters and availability
       queryClient.invalidateQueries({ queryKey: ['gymBookings'] });
       queryClient.invalidateQueries({ queryKey: ['activeGymBookings'] });
+      queryClient.invalidateQueries({ queryKey: ['gymSlots'] });
     },
     onError: (error: any) => {
       toast.error(error.message || t('gym.bookingError'));
@@ -120,20 +158,26 @@ const Gym = () => {
   });
 
   // ✅ Cancel gym booking mutation
+  // Allows users to undo their gym bookings and free up their slot
   const cancelBooking = useMutation({
     mutationFn: async (bookingId: string) => {
       const { error } = await supabase
         .from('bookings')
-        .update({ status: 'cancelled', cancelled_by: user?.id, cancelled_at: new Date().toISOString() })
+        .update({ 
+          status: 'cancelled', 
+          cancelled_by: user?.id, 
+          cancelled_at: new Date().toISOString() 
+        })
         .eq('id', bookingId);
       
       if (error) throw error;
     },
     onSuccess: () => {
       toast.success(t('gym.cancelSuccess'));
-      // ✅ Refresh booking lists and active count
+      // ✅ Invalidate ALL gym queries to update counters and free the slot
       queryClient.invalidateQueries({ queryKey: ['gymBookings'] });
       queryClient.invalidateQueries({ queryKey: ['activeGymBookings'] });
+      queryClient.invalidateQueries({ queryKey: ['gymSlots'] });
     },
     onError: (error: any) => {
       toast.error(error.message || t('gym.cancelError'));
