@@ -346,32 +346,48 @@ const Laundry = () => {
                               return (
                                 <td key={day.toISOString()} className="p-3">
                                   {userHasBooked ? (
-                                    <Button
-                                      variant="default"
-                                      size="sm"
-                                      className="w-full bg-primary hover:bg-primary/90"
-                                      onClick={() => userBooking && cancelBooking.mutate(userBooking.id)}
-                                      disabled={cancelBooking.isPending || isSlotPast}
-                                    >
-                                      {isSlotPast ? 'Past' : 'Cancel'}
-                                    </Button>
-                                  ) : isSlotPast ? (
-                                    <Badge variant="outline" className="w-full justify-center text-xs">
-                                      Past
-                                    </Badge>
-                                  ) : isFull ? (
-                                    <Badge variant="secondary" className="w-full justify-center">
-                                      Full
-                                    </Badge>
-                                  ) : (
+                                    // ✅ USER'S BOOKING - Show "Cancel (You)" button with amber background
                                     <Button
                                       variant="outline"
                                       size="sm"
-                                      className="w-full hover:bg-primary/10 hover:text-primary hover:border-primary"
+                                      className="w-full bg-amber-100 hover:bg-amber-200 border-amber-300 text-amber-900 font-medium"
+                                      onClick={() => userBooking && cancelBooking.mutate(userBooking.id)}
+                                      disabled={cancelBooking.isPending || isSlotPast}
+                                    >
+                                      {isSlotPast ? 'Past' : (
+                                        <span className="flex items-center gap-1">
+                                          <span className="h-2 w-2 rounded-full bg-amber-600"></span>
+                                          Cancel (You)
+                                        </span>
+                                      )}
+                                    </Button>
+                                  ) : isSlotPast ? (
+                                    // ✅ PAST SLOT - Gray disabled badge
+                                    <Badge variant="outline" className="w-full justify-center text-xs bg-gray-100 text-gray-500">
+                                      Past
+                                    </Badge>
+                                  ) : isFull ? (
+                                    // ✅ FULL SLOT - Red disabled badge
+                                    <Badge variant="secondary" className="w-full justify-center bg-red-100 text-red-700 border-red-200">
+                                      Full ({capacity}/{capacity})
+                                    </Badge>
+                                  ) : (
+                                    // ✅ AVAILABLE SLOT - Green "Book" button with live counter
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="w-full bg-green-100 hover:bg-green-200 border-green-300 text-green-900"
                                       onClick={() => createBooking.mutate({ slotId: slot.id, date: day })}
                                       disabled={!canBook() || createBooking.isPending}
                                     >
-                                      Book ({slotBookings.length}/{capacity})
+                                      {createBooking.isPending ? (
+                                        <span className="flex items-center gap-1">
+                                          <Loader2 className="h-3 w-3 animate-spin" />
+                                          Booking...
+                                        </span>
+                                      ) : (
+                                        `Book (${slotBookings.length}/${capacity})`
+                                      )}
                                     </Button>
                                   )}
                                 </td>
@@ -386,24 +402,26 @@ const Laundry = () => {
               </div>
             )}
 
-            {/* Legend */}
+            {/* Legend with color-coded examples */}
             <Card>
               <CardContent className="pt-6">
                 <div className="flex flex-wrap gap-4 text-sm">
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded border border-primary bg-primary/10"></div>
-                    <span>Your booking</span>
+                    <div className="w-16 h-8 rounded border border-amber-300 bg-amber-100 flex items-center justify-center">
+                      <span className="h-2 w-2 rounded-full bg-amber-600"></span>
+                    </div>
+                    <span className="font-medium">Your booking (click to cancel)</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded border bg-background"></div>
-                    <span>Available</span>
+                    <div className="w-16 h-8 rounded border border-green-300 bg-green-100"></div>
+                    <span>Available (click to book)</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded bg-secondary"></div>
+                    <div className="w-16 h-8 rounded border border-red-200 bg-red-100"></div>
                     <span>Full</span>
                   </div>
                   <div className="flex items-center gap-2">
-                    <div className="w-4 h-4 rounded border bg-muted"></div>
+                    <div className="w-16 h-8 rounded border border-gray-200 bg-gray-100"></div>
                     <span>Past / Closed</span>
                   </div>
                 </div>
