@@ -50,7 +50,7 @@ const Laundry = () => {
       
       const { data, error } = await supabase
         .from('bookings')
-        .select('*, profiles(room_number, first_name)')
+        .select('*')
         .eq('resource_type', selectedResource)
         .eq('status', 'booked')
         .gte('booking_date', weekStart)
