@@ -81,16 +81,18 @@ const Gym = () => {
     enabled: !!user,
   });
 
-  // Create booking
+  // ✅ Create gym booking mutation
+  // Enforces maximum 1 active future gym booking per user
   const createBooking = useMutation({
     mutationFn: async ({ slotId, date }: { slotId: string; date: Date }) => {
       if (!user) throw new Error('Not authenticated');
       
-      // Check if user already has an active future booking
+      // ✅ Enforce gym rule: max 1 active future booking per user
       if (activeBookings && activeBookings.length >= 1) {
         throw new Error('You can only have 1 active gym booking at a time. Cancel your existing booking first.');
       }
       
+      // ✅ Insert booking with ISO date format
       const { data, error } = await supabase
         .from('bookings')
         .insert({
@@ -108,6 +110,7 @@ const Gym = () => {
     },
     onSuccess: () => {
       toast.success(t('gym.bookingSuccess'));
+      // ✅ Refresh both queries to update UI immediately
       queryClient.invalidateQueries({ queryKey: ['gymBookings'] });
       queryClient.invalidateQueries({ queryKey: ['activeGymBookings'] });
     },
@@ -116,7 +119,7 @@ const Gym = () => {
     },
   });
 
-  // Cancel booking
+  // ✅ Cancel gym booking mutation
   const cancelBooking = useMutation({
     mutationFn: async (bookingId: string) => {
       const { error } = await supabase
@@ -128,6 +131,7 @@ const Gym = () => {
     },
     onSuccess: () => {
       toast.success(t('gym.cancelSuccess'));
+      // ✅ Refresh booking lists and active count
       queryClient.invalidateQueries({ queryKey: ['gymBookings'] });
       queryClient.invalidateQueries({ queryKey: ['activeGymBookings'] });
     },
@@ -136,6 +140,7 @@ const Gym = () => {
     },
   });
 
+  // ✅ Helper: Get all bookings for a specific gym slot and date
   const getBookingsForSlot = (slotId: string, date: Date) => {
     if (!bookings) return [];
     return bookings.filter(
@@ -143,15 +148,18 @@ const Gym = () => {
     );
   };
 
+  // ✅ Helper: Check if current user has booked this gym slot
   const hasUserBooked = (slotId: string, date: Date) => {
     return getBookingsForSlot(slotId, date).some(b => b.user_id === user?.id);
   };
 
+  // ✅ Helper: Check if date is today (for highlighting)
   const isToday = (date: Date) => {
     const today = new Date();
     return date.toDateString() === today.toDateString();
   };
 
+  // ✅ Helper: Check if gym slot has passed (based on end time)
   const isPast = (date: Date, slot: any) => {
     const now = new Date();
     const slotDateTime = new Date(date);
@@ -160,6 +168,7 @@ const Gym = () => {
     return slotDateTime < now;
   };
 
+  // ✅ Helper: Check if user can book (must have < 1 active booking)
   const canBook = () => {
     return !activeBookings || activeBookings.length < 1;
   };

@@ -1,73 +1,111 @@
-# Welcome to your Lovable project
+# Collegio Golgi Booking System
 
-## Project info
+Internal booking portal for Collegio Camillo Golgi residents in Pavia, Italy. Handles laundry, gym bookings and parcel management.
 
-**URL**: https://lovable.dev/projects/0e542cd5-c1b3-4746-a6cf-77b10488e87c
+## Features
 
-## How can I edit this code?
+- **Laundry Booking**: Book washing machines (LAV) and dryers (ASC) with weekly quotas
+- **Gym Booking**: Reserve 90-minute gym slots with capacity management
+- **Parcel Management**: Track incoming parcels and pickup status
+- **Multi-language**: Italian and English support
+- **Role-based Access**: Resident, Staff, and Admin roles with different permissions
 
-There are several ways of editing your application.
+## Tech Stack
 
-**Use Lovable**
+- React 18 with TypeScript
+- Vite for build tooling
+- Tailwind CSS + shadcn/ui for styling
+- React Query for data fetching
+- Supabase for backend (authentication, database, real-time)
+- React Router for navigation
+- date-fns for date manipulation
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/0e542cd5-c1b3-4746-a6cf-77b10488e87c) and start prompting.
+## Getting Started
 
-Changes made via Lovable will be committed automatically to this repo.
+### Prerequisites
 
-**Use your preferred IDE**
+- Node.js 18+ and npm (install with [nvm](https://github.com/nvm-sh/nvm#installing-and-updating))
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
+### Installation
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
+# Clone the repository
 git clone <YOUR_GIT_URL>
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+# Navigate to project directory
+cd collegio-golgi-portal
 
-# Step 3: Install the necessary dependencies.
-npm i
+# Install dependencies
+npm install
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Start development server
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The app will be available at `http://localhost:5173`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Environment Variables
 
-**Use GitHub Codespaces**
+Create a `.env` file in the root directory:
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+```env
+VITE_SUPABASE_URL=your_supabase_url
+VITE_SUPABASE_PUBLISHABLE_KEY=your_supabase_anon_key
+```
 
-## What technologies are used for this project?
+## Developer Notes
 
-This project is built with:
+### Project Structure
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- `/src/pages/` - Main page components (Laundry, Gym, Parcels, etc.)
+- `/src/components/` - Reusable UI components
+- `/src/contexts/` - React contexts (Auth, Locale)
+- `/src/lib/` - Utility functions and i18n
+- `/src/integrations/supabase/` - Supabase client and types
 
-## How can I deploy this project?
+### Key Features
 
-Simply open [Lovable](https://lovable.dev/projects/0e542cd5-c1b3-4746-a6cf-77b10488e87c) and click on Share -> Publish.
+#### Booking Logic
 
-## Can I connect a custom domain to my Lovable project?
+- **Laundry**: 
+  - Max 3 washers (LAV) + 2 dryers (ASC) per ISO week
+  - Machine capacity: 2× LAV, 1× ASC
+  - Weekly quota tracked in `weekly_quotas` table
 
-Yes, you can!
+- **Gym**: 
+  - Max 1 active future booking per user
+  - 90-minute slots from 07:00-23:00
+  - Capacity of 6 per slot (configurable in DB)
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+#### Database Tables
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+- `profiles` - User profile information
+- `user_roles` - Role assignments (resident, staff, admin)
+- `slots` - Available time slots for each resource type
+- `bookings` - All user bookings with status tracking
+- `weekly_quotas` - Laundry booking counts per user/week
+- `parcels` - Parcel tracking and pickup management
+
+#### Role-Based Access Control
+
+- **Resident**: Book laundry/gym, view own parcels, view news
+- **Staff**: All resident features + manage parcels
+- **Admin**: All staff features + user management, news, settings
+
+### Deployment
+
+Build the production version:
+
+```sh
+npm run build
+```
+
+The built files will be in the `/dist` directory.
+
+## Contributing
+
+This is an internal project for Collegio Golgi. For questions or issues, contact the IT administrator.
+
+## License
+
+© Collegio Camillo Golgi, University of Pavia, 2025. All rights reserved.

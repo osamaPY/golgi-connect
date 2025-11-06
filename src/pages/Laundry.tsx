@@ -83,12 +83,14 @@ const Laundry = () => {
     enabled: !!user,
   });
 
-  // Create booking mutation
+  // ✅ Create booking mutation
+  // This handles laundry booking creation with client-side quota validation
+  // Server-side validation is enforced by unique constraint in DB
   const createBooking = useMutation({
     mutationFn: async ({ slotId, date }: { slotId: string; date: Date }) => {
       if (!user) throw new Error('Not authenticated');
       
-      // Check quota
+      // ✅ Check weekly quota before booking (LAV: max 3, ASC: max 2)
       const currentCount = selectedResource === 'LAV' ? (quota?.lav_count || 0) : (quota?.asc_count || 0);
       const maxCount = selectedResource === 'LAV' ? 3 : 2;
       
@@ -96,6 +98,8 @@ const Laundry = () => {
         throw new Error(`Weekly quota exceeded: max ${maxCount} ${selectedResource} per week`);
       }
       
+      // ✅ Insert booking with ISO date format (YYYY-MM-DD)
+      // The unique constraint prevents duplicate bookings on same slot/date
       const { data, error } = await supabase
         .from('bookings')
         .insert({
@@ -113,6 +117,7 @@ const Laundry = () => {
     },
     onSuccess: () => {
       toast.success(t('laundry.bookingSuccess'));
+      // ✅ Invalidate queries to refresh UI counters immediately
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
       queryClient.invalidateQueries({ queryKey: ['quota'] });
     },
@@ -121,7 +126,8 @@ const Laundry = () => {
     },
   });
 
-  // Cancel booking mutation
+  // ✅ Cancel booking mutation
+  // Updates booking status to 'cancelled' and records who cancelled it
   const cancelBooking = useMutation({
     mutationFn: async (bookingId: string) => {
       const { error } = await supabase
@@ -133,6 +139,7 @@ const Laundry = () => {
     },
     onSuccess: () => {
       toast.success(t('laundry.cancelSuccess'));
+      // ✅ Refresh bookings and quota counts after cancellation
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
       queryClient.invalidateQueries({ queryKey: ['quota'] });
     },
@@ -141,6 +148,7 @@ const Laundry = () => {
     },
   });
 
+  // ✅ Helper: Get all bookings for a specific slot and date
   const getBookingsForSlot = (slotId: string, date: Date) => {
     if (!bookings) return [];
     return bookings.filter(
@@ -148,6 +156,7 @@ const Laundry = () => {
     );
   };
 
+  // ✅ Helper: Check if user can book based on weekly quota
   const canBook = () => {
     if (!quota) return true;
     if (selectedResource === 'LAV') return quota.lav_count < 3;
@@ -155,15 +164,18 @@ const Laundry = () => {
     return false;
   };
 
+  // ✅ Helper: Check if current user has booked this slot
   const hasUserBooked = (slotId: string, date: Date) => {
     return getBookingsForSlot(slotId, date).some(b => b.user_id === user?.id);
   };
 
+  // ✅ Helper: Check if date is today
   const isToday = (date: Date) => {
     const today = new Date();
     return date.toDateString() === today.toDateString();
   };
 
+  // ✅ Helper: Check if slot has passed (based on end time)
   const isPast = (date: Date, slot: any) => {
     const now = new Date();
     const slotDateTime = new Date(date);
