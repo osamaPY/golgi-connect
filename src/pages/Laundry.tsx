@@ -18,6 +18,7 @@ import {
 import { toast } from 'sonner';
 import { format, startOfWeek, addDays, addWeeks, subWeeks, getISOWeek, getYear } from 'date-fns';
 import { Loader2, Droplet, Wind, ChevronLeft, ChevronRight, Info, ChevronDown } from 'lucide-react';
+import { dailySlots90EndAt23, isSlotPast } from '@/lib/slots';
 
 const Laundry = () => {
   const { user } = useAuth();
@@ -266,17 +267,8 @@ const Laundry = () => {
     return date.toDateString() === today.toDateString();
   };
 
-  // ✅ Helper: Check if slot has passed (based on end time)
-  const isPast = (date: Date, slot: any) => {
-    const now = new Date();
-    const slotDateTime = new Date(date);
-    const [hours, minutes] = slot.end_time.split(':');
-    slotDateTime.setHours(parseInt(hours), parseInt(minutes));
-    return slotDateTime < now;
-  };
-
-  // Group slots by time
-  const uniqueTimes = Array.from(new Set(slots?.map(s => `${s.start_time}-${s.end_time}`))).sort();
+  // ✅ Use centralized slot schedule (10 slots, 90 min each, ending at 23:00)
+  const timeSlots = dailySlots90EndAt23();
 
   return (
     <Layout>
@@ -355,7 +347,10 @@ const Laundry = () => {
                   <table className="w-full">
                     <thead className="bg-muted/50">
                       <tr>
-                        <th className="p-3 text-left font-medium sticky left-0 bg-muted/50">Time</th>
+                        <th className="p-3 text-left font-medium sticky left-0 bg-muted/50 min-w-[100px]">
+                          <div className="font-semibold">Time</div>
+                          <div className="text-xs text-muted-foreground font-normal">(90 min)</div>
+                        </th>
                         {weekDays.map(day => (
                           <th key={day.toISOString()} className="p-3 text-center font-medium min-w-[120px]">
                             <div className={isToday(day) ? 'text-primary font-bold' : ''}>{format(day, 'EEE')}</div>
@@ -367,21 +362,19 @@ const Laundry = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {uniqueTimes.map(timeRange => {
-                        const [startTime, endTime] = timeRange.split('-');
-                        
+                      {timeSlots.map(timeSlot => {
                         return (
-                          <tr key={timeRange} className="border-t">
+                          <tr key={timeSlot.id} className="border-t">
                             <td className="p-3 font-medium sticky left-0 bg-background">
-                              <div className="text-sm">{startTime}</div>
-                              <div className="text-xs text-muted-foreground">{endTime}</div>
+                              <div className="text-sm font-bold leading-tight">{timeSlot.start}</div>
+                              <div className="text-xs text-muted-foreground leading-tight">{timeSlot.end}</div>
                             </td>
                             {weekDays.map(day => {
                               const dayOfWeek = day.getDay();
                               const slot = slots?.find(
                                 s => s.day_of_week === dayOfWeek && 
-                                     s.start_time === startTime && 
-                                     s.end_time === endTime
+                                     s.start_time === timeSlot.start && 
+                                     s.end_time === timeSlot.end
                               );
                               
                               if (!slot) {
@@ -394,7 +387,7 @@ const Laundry = () => {
                               const isFull = takenUnits >= capacity;
                               const userHasBooked = hasUserBooked(slot.id, day);
                               const userBooking = getUserBooking(slot.id, day);
-                              const isSlotPast = isPast(day, slot);
+                              const slotIsPast = isSlotPast(day, timeSlot.end);
                               const availableUnits = capacity - takenUnits;
 
                               return (
@@ -406,16 +399,16 @@ const Laundry = () => {
                                       size="sm"
                                       className="w-full bg-amber-100 hover:bg-amber-200 border-amber-300 text-amber-900 font-medium"
                                       onClick={() => userBooking && cancelBooking.mutate(userBooking.id)}
-                                      disabled={cancelBooking.isPending || isSlotPast}
+                                      disabled={cancelBooking.isPending || slotIsPast}
                                     >
-                                      {isSlotPast ? 'Past' : (
+                                      {slotIsPast ? 'Past' : (
                                         <span className="flex items-center gap-1">
                                           <span className="h-2 w-2 rounded-full bg-amber-600"></span>
                                           Cancel (You{selectedResource === 'LAV' && userBooking?.units ? ` – ${userBooking.units}` : ''})
                                         </span>
                                       )}
                                     </Button>
-                                  ) : isSlotPast ? (
+                                  ) : slotIsPast ? (
                                     // ✅ PAST SLOT - Gray disabled badge
                                     <Badge variant="outline" className="w-full justify-center text-xs bg-gray-100 text-gray-500">
                                       Past
