@@ -10,8 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { format, startOfWeek, addDays, getISOWeek, getYear } from 'date-fns';
-import { Loader2, Droplet, Wind } from 'lucide-react';
+import { format, startOfWeek, addDays, addWeeks, subWeeks, getISOWeek, getYear } from 'date-fns';
+import { Loader2, Droplet, Wind, ChevronLeft, ChevronRight, Info } from 'lucide-react';
 
 const Laundry = () => {
   const { user } = useAuth();
@@ -22,6 +22,8 @@ const Laundry = () => {
   const [selectedResource, setSelectedResource] = useState<'LAV' | 'ASC'>('LAV');
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(selectedWeek, i));
+  const weekStart = format(selectedWeek, 'MMM d');
+  const weekEnd = format(addDays(selectedWeek, 6), 'MMM d, yyyy');
 
   // Fetch slots
   const { data: slots, isLoading: slotsLoading } = useQuery({
@@ -32,7 +34,6 @@ const Laundry = () => {
         .select('*')
         .eq('resource_type', selectedResource)
         .eq('is_active', true)
-        .order('day_of_week')
         .order('start_time');
       
       if (error) throw error;
@@ -87,6 +88,14 @@ const Laundry = () => {
     mutationFn: async ({ slotId, date }: { slotId: string; date: Date }) => {
       if (!user) throw new Error('Not authenticated');
       
+      // Check quota
+      const currentCount = selectedResource === 'LAV' ? (quota?.lav_count || 0) : (quota?.asc_count || 0);
+      const maxCount = selectedResource === 'LAV' ? 3 : 2;
+      
+      if (currentCount >= maxCount) {
+        throw new Error(`Weekly quota exceeded: max ${maxCount} ${selectedResource} per week`);
+      }
+      
       const { data, error } = await supabase
         .from('bookings')
         .insert({
@@ -140,7 +149,7 @@ const Laundry = () => {
   };
 
   const canBook = () => {
-    if (!quota) return false;
+    if (!quota) return true;
     if (selectedResource === 'LAV') return quota.lav_count < 3;
     if (selectedResource === 'ASC') return quota.asc_count < 2;
     return false;
@@ -150,6 +159,22 @@ const Laundry = () => {
     return getBookingsForSlot(slotId, date).some(b => b.user_id === user?.id);
   };
 
+  const isToday = (date: Date) => {
+    const today = new Date();
+    return date.toDateString() === today.toDateString();
+  };
+
+  const isPast = (date: Date, slot: any) => {
+    const now = new Date();
+    const slotDateTime = new Date(date);
+    const [hours, minutes] = slot.end_time.split(':');
+    slotDateTime.setHours(parseInt(hours), parseInt(minutes));
+    return slotDateTime < now;
+  };
+
+  // Group slots by time
+  const uniqueTimes = Array.from(new Set(slots?.map(s => `${s.start_time}-${s.end_time}`))).sort();
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -158,13 +183,44 @@ const Laundry = () => {
           <p className="text-muted-foreground">{t('laundry.description')}</p>
         </div>
 
+        {/* Week Navigation */}
+        <div className="flex items-center justify-between">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSelectedWeek(subWeeks(selectedWeek, 1))}
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Previous
+          </Button>
+          <div className="text-center">
+            <p className="font-medium">Week of {weekStart} – {weekEnd}</p>
+            <p className="text-sm text-muted-foreground">Week {getISOWeek(selectedWeek)}, {getYear(selectedWeek)}</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSelectedWeek(addWeeks(selectedWeek, 1))}
+          >
+            Next
+            <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
+        </div>
+
+        {/* Quota Card */}
         <Card>
           <CardHeader>
-            <CardTitle>{t('laundry.weeklyQuota')}</CardTitle>
-            <CardDescription>
-              {selectedResource === 'LAV' 
-                ? `${quota?.lav_count || 0} / 3 ${t('laundry.washers')}` 
-                : `${quota?.asc_count || 0} / 2 ${t('laundry.dryers')}`}
+            <CardTitle className="flex items-center gap-2">
+              {t('laundry.weeklyQuota')}
+              <Badge variant={canBook() ? 'default' : 'destructive'}>
+                {selectedResource === 'LAV' 
+                  ? `${quota?.lav_count || 0}/3 ${t('laundry.washers')}` 
+                  : `${quota?.asc_count || 0}/2 ${t('laundry.dryers')}`}
+              </Badge>
+            </CardTitle>
+            <CardDescription className="flex items-start gap-2">
+              <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span>Maximum 3 washers (LAV) and 2 dryers (ASC) per week. Cancel slots you can't use.</span>
             </CardDescription>
           </CardHeader>
         </Card>
@@ -173,11 +229,11 @@ const Laundry = () => {
           <TabsList className="grid w-full grid-cols-2">
             <TabsTrigger value="LAV" className="flex items-center gap-2">
               <Droplet className="h-4 w-4" />
-              {t('laundry.washers')} (LAV)
+              {t('laundry.washers')} (2 machines)
             </TabsTrigger>
             <TabsTrigger value="ASC" className="flex items-center gap-2">
               <Wind className="h-4 w-4" />
-              {t('laundry.dryers')} (ASC)
+              {t('laundry.dryers')} (1 machine)
             </TabsTrigger>
           </TabsList>
 
@@ -188,71 +244,116 @@ const Laundry = () => {
               </div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
-                  <thead>
-                    <tr className="border-b">
-                      <th className="p-3 text-left font-medium">Time</th>
-                      {weekDays.map(day => (
-                        <th key={day.toISOString()} className="p-3 text-center font-medium">
-                          <div>{format(day, 'EEE')}</div>
-                          <div className="text-sm text-muted-foreground">{format(day, 'MMM d')}</div>
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {slots?.map(slot => (
-                      <tr key={slot.id} className="border-b">
-                        <td className="p-3 font-medium">
-                          {slot.start_time} - {slot.end_time}
-                        </td>
-                        {weekDays.map(day => {
-                          if (day.getDay() !== (slot.day_of_week === 0 ? 0 : slot.day_of_week)) {
-                            return <td key={day.toISOString()} className="p-3"></td>;
-                          }
-                          
-                          const slotBookings = getBookingsForSlot(slot.id, day);
-                          const capacity = slot.capacity || (selectedResource === 'LAV' ? 2 : 1);
-                          const isFull = slotBookings.length >= capacity;
-                          const userHasBooked = hasUserBooked(slot.id, day);
-                          const userBooking = slotBookings.find(b => b.user_id === user?.id);
-
-                          return (
-                            <td key={day.toISOString()} className="p-3">
-                              {userHasBooked ? (
-                                <Button
-                                  variant="destructive"
-                                  size="sm"
-                                  className="w-full"
-                                  onClick={() => userBooking && cancelBooking.mutate(userBooking.id)}
-                                  disabled={cancelBooking.isPending}
-                                >
-                                  {t('laundry.cancel')}
-                                </Button>
-                              ) : isFull ? (
-                                <Badge variant="secondary" className="w-full justify-center">
-                                  {t('laundry.full')}
-                                </Badge>
-                              ) : (
-                                <Button
-                                  variant="outline"
-                                  size="sm"
-                                  className="w-full"
-                                  onClick={() => createBooking.mutate({ slotId: slot.id, date: day })}
-                                  disabled={!canBook() || createBooking.isPending}
-                                >
-                                  {t('laundry.book')} ({slotBookings.length}/{capacity})
-                                </Button>
-                              )}
-                            </td>
-                          );
-                        })}
+                <div className="min-w-[800px] border rounded-lg">
+                  <table className="w-full">
+                    <thead className="bg-muted/50">
+                      <tr>
+                        <th className="p-3 text-left font-medium sticky left-0 bg-muted/50">Time</th>
+                        {weekDays.map(day => (
+                          <th key={day.toISOString()} className="p-3 text-center font-medium min-w-[120px]">
+                            <div className={isToday(day) ? 'text-primary font-bold' : ''}>{format(day, 'EEE')}</div>
+                            <div className={`text-sm ${isToday(day) ? 'text-primary' : 'text-muted-foreground'}`}>
+                              {format(day, 'MMM d')}
+                            </div>
+                          </th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody>
+                      {uniqueTimes.map(timeRange => {
+                        const [startTime, endTime] = timeRange.split('-');
+                        
+                        return (
+                          <tr key={timeRange} className="border-t">
+                            <td className="p-3 font-medium sticky left-0 bg-background">
+                              <div className="text-sm">{startTime}</div>
+                              <div className="text-xs text-muted-foreground">{endTime}</div>
+                            </td>
+                            {weekDays.map(day => {
+                              const dayOfWeek = day.getDay();
+                              const slot = slots?.find(
+                                s => s.day_of_week === dayOfWeek && 
+                                     s.start_time === startTime && 
+                                     s.end_time === endTime
+                              );
+                              
+                              if (!slot) {
+                                return <td key={day.toISOString()} className="p-3 bg-muted/20"></td>;
+                              }
+                              
+                              const slotBookings = getBookingsForSlot(slot.id, day);
+                              const capacity = selectedResource === 'LAV' ? 2 : 1;
+                              const isFull = slotBookings.length >= capacity;
+                              const userHasBooked = hasUserBooked(slot.id, day);
+                              const userBooking = slotBookings.find(b => b.user_id === user?.id);
+                              const isSlotPast = isPast(day, slot);
+
+                              return (
+                                <td key={day.toISOString()} className="p-3">
+                                  {userHasBooked ? (
+                                    <Button
+                                      variant="default"
+                                      size="sm"
+                                      className="w-full bg-primary hover:bg-primary/90"
+                                      onClick={() => userBooking && cancelBooking.mutate(userBooking.id)}
+                                      disabled={cancelBooking.isPending || isSlotPast}
+                                    >
+                                      {isSlotPast ? 'Past' : 'Cancel'}
+                                    </Button>
+                                  ) : isSlotPast ? (
+                                    <Badge variant="outline" className="w-full justify-center text-xs">
+                                      Past
+                                    </Badge>
+                                  ) : isFull ? (
+                                    <Badge variant="secondary" className="w-full justify-center">
+                                      Full
+                                    </Badge>
+                                  ) : (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="w-full hover:bg-primary/10 hover:text-primary hover:border-primary"
+                                      onClick={() => createBooking.mutate({ slotId: slot.id, date: day })}
+                                      disabled={!canBook() || createBooking.isPending}
+                                    >
+                                      Book ({slotBookings.length}/{capacity})
+                                    </Button>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
+
+            {/* Legend */}
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded border border-primary bg-primary/10"></div>
+                    <span>Your booking</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded border bg-background"></div>
+                    <span>Available</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded bg-secondary"></div>
+                    <span>Full</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded border bg-muted"></div>
+                    <span>Past / Closed</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
       </div>

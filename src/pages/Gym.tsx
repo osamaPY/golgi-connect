@@ -6,20 +6,22 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import Layout from '@/components/Layout';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
-import { format, addDays, startOfDay } from 'date-fns';
-import { Loader2, Dumbbell } from 'lucide-react';
+import { format, startOfWeek, addDays, addWeeks, subWeeks, getISOWeek, getYear } from 'date-fns';
+import { Loader2, Dumbbell, ChevronLeft, ChevronRight, Info } from 'lucide-react';
 
 const Gym = () => {
   const { user } = useAuth();
   const { locale } = useLocale();
   const { t } = useTranslation(locale);
   const queryClient = useQueryClient();
-  const [selectedDate, setSelectedDate] = useState(startOfDay(new Date()));
+  const [selectedWeek, setSelectedWeek] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
 
-  const dates = Array.from({ length: 7 }, (_, i) => addDays(selectedDate, i));
+  const weekDays = Array.from({ length: 7 }, (_, i) => addDays(selectedWeek, i));
+  const weekStart = format(selectedWeek, 'MMM d');
+  const weekEnd = format(addDays(selectedWeek, 6), 'MMM d, yyyy');
 
   // Fetch gym slots
   const { data: slots, isLoading } = useQuery({
@@ -30,7 +32,6 @@ const Gym = () => {
         .select('*')
         .eq('resource_type', 'GYM')
         .eq('is_active', true)
-        .order('day_of_week')
         .order('start_time');
       
       if (error) throw error;
@@ -40,10 +41,10 @@ const Gym = () => {
 
   // Fetch bookings
   const { data: bookings } = useQuery({
-    queryKey: ['gymBookings', selectedDate],
+    queryKey: ['gymBookings', selectedWeek],
     queryFn: async () => {
-      const dateStart = format(selectedDate, 'yyyy-MM-dd');
-      const dateEnd = format(addDays(selectedDate, 6), 'yyyy-MM-dd');
+      const dateStart = format(selectedWeek, 'yyyy-MM-dd');
+      const dateEnd = format(addDays(selectedWeek, 6), 'yyyy-MM-dd');
       
       const { data, error } = await supabase
         .from('bookings')
@@ -58,10 +59,37 @@ const Gym = () => {
     },
   });
 
+  // Check user's active gym bookings
+  const { data: activeBookings } = useQuery({
+    queryKey: ['activeGymBookings', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      
+      const today = format(new Date(), 'yyyy-MM-dd');
+      
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('resource_type', 'GYM')
+        .eq('status', 'booked')
+        .gte('booking_date', today);
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!user,
+  });
+
   // Create booking
   const createBooking = useMutation({
     mutationFn: async ({ slotId, date }: { slotId: string; date: Date }) => {
       if (!user) throw new Error('Not authenticated');
+      
+      // Check if user already has an active future booking
+      if (activeBookings && activeBookings.length >= 1) {
+        throw new Error('You can only have 1 active gym booking at a time. Cancel your existing booking first.');
+      }
       
       const { data, error } = await supabase
         .from('bookings')
@@ -81,6 +109,7 @@ const Gym = () => {
     onSuccess: () => {
       toast.success(t('gym.bookingSuccess'));
       queryClient.invalidateQueries({ queryKey: ['gymBookings'] });
+      queryClient.invalidateQueries({ queryKey: ['activeGymBookings'] });
     },
     onError: (error: any) => {
       toast.error(error.message || t('gym.bookingError'));
@@ -100,6 +129,7 @@ const Gym = () => {
     onSuccess: () => {
       toast.success(t('gym.cancelSuccess'));
       queryClient.invalidateQueries({ queryKey: ['gymBookings'] });
+      queryClient.invalidateQueries({ queryKey: ['activeGymBookings'] });
     },
     onError: (error: any) => {
       toast.error(error.message || t('gym.cancelError'));
@@ -117,6 +147,26 @@ const Gym = () => {
     return getBookingsForSlot(slotId, date).some(b => b.user_id === user?.id);
   };
 
+  const isToday = (date: Date) => {
+    const today = new Date();
+    return date.toDateString() === today.toDateString();
+  };
+
+  const isPast = (date: Date, slot: any) => {
+    const now = new Date();
+    const slotDateTime = new Date(date);
+    const [hours, minutes] = slot.end_time.split(':');
+    slotDateTime.setHours(parseInt(hours), parseInt(minutes));
+    return slotDateTime < now;
+  };
+
+  const canBook = () => {
+    return !activeBookings || activeBookings.length < 1;
+  };
+
+  // Group slots by time
+  const uniqueTimes = Array.from(new Set(slots?.map(s => `${s.start_time}-${s.end_time}`))).sort();
+
   return (
     <Layout>
       <div className="space-y-6">
@@ -130,76 +180,163 @@ const Gym = () => {
           </div>
         </div>
 
+        {/* Week Navigation */}
+        <div className="flex items-center justify-between">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSelectedWeek(subWeeks(selectedWeek, 1))}
+          >
+            <ChevronLeft className="h-4 w-4 mr-1" />
+            Previous
+          </Button>
+          <div className="text-center">
+            <p className="font-medium">Week of {weekStart} – {weekEnd}</p>
+            <p className="text-sm text-muted-foreground">Week {getISOWeek(selectedWeek)}, {getYear(selectedWeek)}</p>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSelectedWeek(addWeeks(selectedWeek, 1))}
+          >
+            Next
+            <ChevronRight className="h-4 w-4 ml-1" />
+          </Button>
+        </div>
+
+        {/* Active Bookings Card */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              Active Bookings
+              <Badge variant={canBook() ? 'default' : 'destructive'}>
+                {activeBookings?.length || 0}/1
+              </Badge>
+            </CardTitle>
+            <CardDescription className="flex items-start gap-2">
+              <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span>You can have 1 active gym booking at a time. Cancel your existing booking to book a new slot.</span>
+            </CardDescription>
+          </CardHeader>
+        </Card>
+
         {isLoading ? (
           <div className="flex justify-center py-12">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-b">
-                  <th className="p-3 text-left font-medium">Time</th>
-                  {dates.map(date => (
-                    <th key={date.toISOString()} className="p-3 text-center font-medium">
-                      <div>{format(date, 'EEE')}</div>
-                      <div className="text-sm text-muted-foreground">{format(date, 'MMM d')}</div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {slots?.map(slot => (
-                  <tr key={slot.id} className="border-b">
-                    <td className="p-3 font-medium">
-                      {slot.start_time} - {slot.end_time}
-                    </td>
-                    {dates.map(date => {
-                      if (date.getDay() !== (slot.day_of_week === 0 ? 0 : slot.day_of_week)) {
-                        return <td key={date.toISOString()} className="p-3"></td>;
-                      }
+          <>
+            <div className="overflow-x-auto">
+              <div className="min-w-[800px] border rounded-lg">
+                <table className="w-full">
+                  <thead className="bg-muted/50">
+                    <tr>
+                      <th className="p-3 text-left font-medium sticky left-0 bg-muted/50">Time (90 min)</th>
+                      {weekDays.map(day => (
+                        <th key={day.toISOString()} className="p-3 text-center font-medium min-w-[120px]">
+                          <div className={isToday(day) ? 'text-primary font-bold' : ''}>{format(day, 'EEE')}</div>
+                          <div className={`text-sm ${isToday(day) ? 'text-primary' : 'text-muted-foreground'}`}>
+                            {format(day, 'MMM d')}
+                          </div>
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {uniqueTimes.map(timeRange => {
+                      const [startTime, endTime] = timeRange.split('-');
                       
-                      const slotBookings = getBookingsForSlot(slot.id, date);
-                      const capacity = 6; // Default gym capacity
-                      const isFull = slotBookings.length >= capacity;
-                      const userHasBooked = hasUserBooked(slot.id, date);
-                      const userBooking = slotBookings.find(b => b.user_id === user?.id);
-
                       return (
-                        <td key={date.toISOString()} className="p-3">
-                          {userHasBooked ? (
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              className="w-full"
-                              onClick={() => userBooking && cancelBooking.mutate(userBooking.id)}
-                              disabled={cancelBooking.isPending}
-                            >
-                              {t('gym.cancel')}
-                            </Button>
-                          ) : isFull ? (
-                            <Badge variant="secondary" className="w-full justify-center">
-                              {t('gym.full')}
-                            </Badge>
-                          ) : (
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="w-full"
-                              onClick={() => createBooking.mutate({ slotId: slot.id, date })}
-                              disabled={createBooking.isPending}
-                            >
-                              {t('gym.book')} ({slotBookings.length}/{capacity})
-                            </Button>
-                          )}
-                        </td>
+                        <tr key={timeRange} className="border-t">
+                          <td className="p-3 font-medium sticky left-0 bg-background">
+                            <div className="text-sm">{startTime}</div>
+                            <div className="text-xs text-muted-foreground">{endTime}</div>
+                          </td>
+                          {weekDays.map(day => {
+                            const dayOfWeek = day.getDay();
+                            const slot = slots?.find(
+                              s => s.day_of_week === dayOfWeek && 
+                                   s.start_time === startTime && 
+                                   s.end_time === endTime
+                            );
+                            
+                            if (!slot) {
+                              return <td key={day.toISOString()} className="p-3 bg-muted/20"></td>;
+                            }
+                            
+                            const slotBookings = getBookingsForSlot(slot.id, day);
+                            const capacity = 6; // Default gym capacity
+                            const isFull = slotBookings.length >= capacity;
+                            const userHasBooked = hasUserBooked(slot.id, day);
+                            const userBooking = slotBookings.find(b => b.user_id === user?.id);
+                            const isSlotPast = isPast(day, slot);
+
+                            return (
+                              <td key={day.toISOString()} className="p-3">
+                                {userHasBooked ? (
+                                  <Button
+                                    variant="default"
+                                    size="sm"
+                                    className="w-full bg-primary hover:bg-primary/90"
+                                    onClick={() => userBooking && cancelBooking.mutate(userBooking.id)}
+                                    disabled={cancelBooking.isPending || isSlotPast}
+                                  >
+                                    {isSlotPast ? 'Past' : 'Cancel'}
+                                  </Button>
+                                ) : isSlotPast ? (
+                                  <Badge variant="outline" className="w-full justify-center text-xs">
+                                    Past
+                                  </Badge>
+                                ) : isFull ? (
+                                  <Badge variant="secondary" className="w-full justify-center">
+                                    Full
+                                  </Badge>
+                                ) : (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="w-full hover:bg-primary/10 hover:text-primary hover:border-primary"
+                                    onClick={() => createBooking.mutate({ slotId: slot.id, date: day })}
+                                    disabled={!canBook() || createBooking.isPending}
+                                  >
+                                    Book ({slotBookings.length}/{capacity})
+                                  </Button>
+                                )}
+                              </td>
+                            );
+                          })}
+                        </tr>
                       );
                     })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Legend */}
+            <Card>
+              <CardContent className="pt-6">
+                <div className="flex flex-wrap gap-4 text-sm">
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded border border-primary bg-primary/10"></div>
+                    <span>Your booking</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded border bg-background"></div>
+                    <span>Available</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded bg-secondary"></div>
+                    <span>Full</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 rounded border bg-muted"></div>
+                    <span>Past / Closed</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </>
         )}
       </div>
     </Layout>
