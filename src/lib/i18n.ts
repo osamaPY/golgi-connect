@@ -2,7 +2,6 @@ export type Locale = 'it' | 'en';
 
 export const translations = {
   it: {
-    // Navigation
     nav: {
       home: 'Home',
       laundry: 'Lavanderia',
@@ -12,7 +11,6 @@ export const translations = {
       admin: 'Admin',
       logout: 'Esci',
     },
-    // Auth
     auth: {
       login: 'Accedi',
       signup: 'Registrati',
@@ -30,18 +28,17 @@ export const translations = {
       noAccount: 'Non hai un account?',
       hasAccount: 'Hai già un account?',
     },
-    // News
     news: {
       title: 'Notizie ed Avvisi',
       pinned: 'In Evidenza',
       readMore: 'Leggi di più',
       noNews: 'Nessuna notizia al momento',
     },
-    // Laundry
     laundry: {
       title: 'Prenota Lavanderia',
-      washers: 'Lavatrici (LAV)',
-      dryers: 'Asciugatrici (ASC)',
+      description: 'Prenota lavatrici e asciugatrici',
+      washers: 'Lavatrici',
+      dryers: 'Asciugatrici',
       available: 'Disponibile',
       booked: 'Prenotato',
       yourBooking: 'Tua Prenotazione',
@@ -54,16 +51,26 @@ export const translations = {
       ascUsed: 'ASC utilizzate',
       maxLav: 'Max 3 LAV/settimana',
       maxAsc: 'Max 2 ASC/settimana',
-      rules: 'Regole',
-      rule1: 'Massimo 3 LAV e 2 ASC a settimana',
-      rule2: 'Non sovrascrivere le prenotazioni altrui',
-      rule3: 'NON usare il programma 70 (dura 3 ore)',
-      rule4: 'Cancella se non puoi più utilizzare lo slot',
+      bookingSuccess: 'Prenotazione creata con successo',
+      bookingError: 'Errore nella creazione della prenotazione',
+      cancelSuccess: 'Prenotazione annullata',
+      cancelError: 'Errore nell\'annullamento',
     },
-    // Parcels
+    gym: {
+      description: 'Prenota slot per la palestra',
+      book: 'Prenota',
+      cancel: 'Annulla',
+      full: 'Pieno',
+      bookingSuccess: 'Prenotazione palestra creata',
+      bookingError: 'Errore nella prenotazione',
+      cancelSuccess: 'Prenotazione annullata',
+      cancelError: 'Errore nell\'annullamento',
+    },
     parcels: {
       title: 'I Miei Pacchi',
-      noParcels: 'Nessun pacco in arrivo',
+      description: 'Visualizza i tuoi pacchi in arrivo',
+      noParcels: 'Nessun pacco',
+      noParcelsDescription: 'Al momento non hai pacchi in consegna',
       arrived: 'Arrivato',
       notified: 'Notificato',
       pickedUp: 'Ritirato',
@@ -71,8 +78,29 @@ export const translations = {
       tracking: 'Tracking',
       arrivedAt: 'Arrivato il',
       pickupAt: 'Ritirato il',
+      pickedUpAt: 'Ritirato il',
+      unknownCarrier: 'Corriere sconosciuto',
     },
-    // Common
+    profile: {
+      description: 'Visualizza e modifica il tuo profilo',
+      personalInfo: 'Informazioni Personali',
+      personalInfoDescription: 'I tuoi dati del profilo',
+      name: 'Nome',
+      email: 'Email',
+      room: 'Stanza',
+      role: 'Ruolo',
+    },
+    admin: {
+      description: 'Gestisci il sistema',
+      users: 'Gestione Utenti',
+      usersDescription: 'Gestisci account e ruoli utente',
+      news: 'Gestione News',
+      newsDescription: 'Crea e modifica annunci',
+      schedule: 'Gestione Orari',
+      scheduleDescription: 'Configura slot lavanderia e palestra',
+      settings: 'Impostazioni',
+      settingsDescription: 'Configura le impostazioni del sistema',
+    },
     common: {
       loading: 'Caricamento...',
       error: 'Errore',
@@ -89,7 +117,6 @@ export const translations = {
     },
   },
   en: {
-    // Navigation
     nav: {
       home: 'Home',
       laundry: 'Laundry',
@@ -99,7 +126,6 @@ export const translations = {
       admin: 'Admin',
       logout: 'Logout',
     },
-    // Auth
     auth: {
       login: 'Login',
       signup: 'Sign Up',
@@ -117,18 +143,17 @@ export const translations = {
       noAccount: "Don't have an account?",
       hasAccount: 'Already have an account?',
     },
-    // News
     news: {
       title: 'News & Announcements',
       pinned: 'Pinned',
       readMore: 'Read more',
       noNews: 'No news at the moment',
     },
-    // Laundry
     laundry: {
       title: 'Book Laundry',
-      washers: 'Washers (LAV)',
-      dryers: 'Dryers (ASC)',
+      description: 'Book washing machines and dryers',
+      washers: 'Washers',
+      dryers: 'Dryers',
       available: 'Available',
       booked: 'Booked',
       yourBooking: 'Your Booking',
@@ -141,16 +166,26 @@ export const translations = {
       ascUsed: 'ASC used',
       maxLav: 'Max 3 LAV/week',
       maxAsc: 'Max 2 ASC/week',
-      rules: 'Rules',
-      rule1: 'Maximum 3 LAV and 2 ASC per week',
-      rule2: 'Do not overwrite others\' reservations',
-      rule3: 'DO NOT use program 70 (lasts 3 hours)',
-      rule4: 'Cancel if you can no longer use the slot',
+      bookingSuccess: 'Booking created successfully',
+      bookingError: 'Error creating booking',
+      cancelSuccess: 'Booking cancelled',
+      cancelError: 'Error cancelling booking',
     },
-    // Parcels
+    gym: {
+      description: 'Book gym time slots',
+      book: 'Book',
+      cancel: 'Cancel',
+      full: 'Full',
+      bookingSuccess: 'Gym booking created',
+      bookingError: 'Error creating booking',
+      cancelSuccess: 'Booking cancelled',
+      cancelError: 'Error cancelling',
+    },
     parcels: {
       title: 'My Parcels',
-      noParcels: 'No parcels incoming',
+      description: 'View your incoming parcels',
+      noParcels: 'No parcels',
+      noParcelsDescription: 'You don\'t have any parcels at the moment',
       arrived: 'Arrived',
       notified: 'Notified',
       pickedUp: 'Picked Up',
@@ -158,8 +193,29 @@ export const translations = {
       tracking: 'Tracking',
       arrivedAt: 'Arrived on',
       pickupAt: 'Picked up on',
+      pickedUpAt: 'Picked up at',
+      unknownCarrier: 'Unknown Carrier',
     },
-    // Common
+    profile: {
+      description: 'View and edit your profile',
+      personalInfo: 'Personal Information',
+      personalInfoDescription: 'Your profile details',
+      name: 'Name',
+      email: 'Email',
+      room: 'Room',
+      role: 'Role',
+    },
+    admin: {
+      description: 'Manage the system',
+      users: 'User Management',
+      usersDescription: 'Manage user accounts and roles',
+      news: 'News Management',
+      newsDescription: 'Create and edit announcements',
+      schedule: 'Schedule Management',
+      scheduleDescription: 'Configure laundry and gym slots',
+      settings: 'Settings',
+      settingsDescription: 'Configure system settings',
+    },
     common: {
       loading: 'Loading...',
       error: 'Error',
