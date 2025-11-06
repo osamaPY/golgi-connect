@@ -371,10 +371,11 @@ const Laundry = () => {
                             </td>
                             {weekDays.map(day => {
                               const dayOfWeek = day.getDay();
+                              // Match slots handling both "HH:MM" and "HH:MM:SS" formats
                               const slot = slots?.find(
                                 s => s.day_of_week === dayOfWeek && 
-                                     s.start_time === timeSlot.start && 
-                                     s.end_time === timeSlot.end
+                                     s.start_time.substring(0, 5) === timeSlot.start && 
+                                     s.end_time.substring(0, 5) === timeSlot.end
                               );
                               
                               if (!slot) {
@@ -382,7 +383,7 @@ const Laundry = () => {
                               }
                               
                               const slotBookings = getBookingsForSlot(slot.id, day);
-                              const capacity = selectedResource === 'LAV' ? 2 : 1;
+                              const capacity = slot.capacity || (selectedResource === 'LAV' ? 2 : 1); // Use DB capacity
                               const takenUnits = getTakenUnits(slot.id, day);
                               const isFull = takenUnits >= capacity;
                               const userHasBooked = hasUserBooked(slot.id, day);

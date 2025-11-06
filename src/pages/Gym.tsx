@@ -303,10 +303,11 @@ const Gym = () => {
                           </td>
                           {weekDays.map(day => {
                             const dayOfWeek = day.getDay();
+                            // Match slots handling both "HH:MM" and "HH:MM:SS" formats
                             const slot = slots?.find(
                               s => s.day_of_week === dayOfWeek && 
-                                   s.start_time === timeSlot.start && 
-                                   s.end_time === timeSlot.end
+                                   s.start_time.substring(0, 5) === timeSlot.start && 
+                                   s.end_time.substring(0, 5) === timeSlot.end
                             );
                             
                             if (!slot) {
@@ -314,7 +315,7 @@ const Gym = () => {
                             }
                             
                             const slotBookings = getBookingsForSlot(slot.id, day);
-                            const capacity = 6; // Default gym capacity
+                            const capacity = slot.capacity || 6; // Use DB capacity, default 6 for gym
                             const isFull = slotBookings.length >= capacity;
                             const userHasBooked = hasUserBooked(slot.id, day);
                             const userBooking = slotBookings.find(b => b.user_id === user?.id);
