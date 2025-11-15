@@ -8,31 +8,31 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Collegiate blue theme */
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    /* Collegio Golgi Theme - Dark Forest Green & Gold */
+    --background: 150 30% 12%;
+    --foreground: 45 60% 92%;
 
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card: 150 25% 16%;
+    --card-foreground: 45 60% 92%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover: 150 28% 14%;
+    --popover-foreground: 45 60% 92%;
 
-    /* Deep academic blue */
-    --primary: 221 83% 30%;
-    --primary-foreground: 0 0% 100%;
-    --primary-hover: 221 83% 25%;
+    /* Golden accent as primary */
+    --primary: 45 75% 55%;
+    --primary-foreground: 150 30% 12%;
+    --primary-hover: 45 75% 48%;
 
-    /* Warm amber accent for actions */
-    --secondary: 43 96% 56%;
-    --secondary-foreground: 0 0% 0%;
-    --secondary-hover: 43 96% 50%;
+    /* Deep green as secondary */
+    --secondary: 150 20% 22%;
+    --secondary-foreground: 45 60% 92%;
+    --secondary-hover: 150 20% 18%;
 
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 150 15% 20%;
+    --muted-foreground: 45 20% 65%;
 
-    --accent: 43 96% 56%;
-    --accent-foreground: 0 0% 0%;
+    --accent: 45 75% 55%;
+    --accent-foreground: 150 30% 12%;
 
     --destructive: 0 84% 60%;
     --destructive-foreground: 0 0% 100%;
@@ -45,56 +45,57 @@ All colors MUST be HSL.
     --available: 142 76% 36%;
     --available-foreground: 0 0% 100%;
 
-    /* Booked slot */
-    --booked: 221 83% 30%;
-    --booked-foreground: 0 0% 100%;
+    /* Booked slot - golden */
+    --booked: 45 92% 50%;
+    --booked-foreground: 150 30% 12%;
 
     /* Full slot */
     --full: 0 72% 51%;
     --full-foreground: 0 0% 100%;
 
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-    --ring: 221 83% 30%;
+    --border: 150 15% 25%;
+    --input: 150 15% 20%;
+    --ring: 45 75% 55%;
 
     --radius: 0.5rem;
 
     /* Gradients for hero sections */
-    --gradient-hero: linear-gradient(135deg, hsl(221 83% 30%) 0%, hsl(221 83% 45%) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(0 0% 100%) 0%, hsl(210 40% 98%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(150 30% 12%) 0%, hsl(150 25% 18%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(150 25% 16%) 0%, hsl(150 25% 14%) 100%);
 
-    /* Shadows */
-    --shadow-sm: 0 1px 2px 0 hsl(221 83% 30% / 0.05);
-    --shadow-md: 0 4px 6px -1px hsl(221 83% 30% / 0.1);
-    --shadow-lg: 0 10px 15px -3px hsl(221 83% 30% / 0.15);
+    /* Shadows with golden glow */
+    --shadow-sm: 0 1px 2px 0 hsl(45 75% 55% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(45 75% 55% / 0.1);
+    --shadow-lg: 0 10px 15px -3px hsl(45 75% 55% / 0.15);
 
     /* Transitions */
     --transition-base: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
   .dark {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
+    /* Collegio Golgi Dark Mode - Even Deeper Green */
+    --background: 150 28% 10%;
+    --foreground: 45 60% 92%;
 
-    --card: 217 33% 17%;
-    --card-foreground: 210 40% 98%;
+    --card: 150 25% 14%;
+    --card-foreground: 45 60% 92%;
 
-    --popover: 217 33% 17%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 150 28% 12%;
+    --popover-foreground: 45 60% 92%;
 
-    --primary: 221 83% 53%;
-    --primary-foreground: 0 0% 100%;
-    --primary-hover: 221 83% 48%;
+    --primary: 45 75% 55%;
+    --primary-foreground: 150 30% 12%;
+    --primary-hover: 45 75% 48%;
 
-    --secondary: 43 96% 56%;
-    --secondary-foreground: 0 0% 0%;
+    --secondary: 150 20% 18%;
+    --secondary-foreground: 45 60% 92%;
     --secondary-hover: 43 96% 50%;
 
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 150 15% 18%;
+    --muted-foreground: 45 20% 65%;
 
-    --accent: 43 96% 56%;
-    --accent-foreground: 0 0% 0%;
+    --accent: 45 75% 55%;
+    --accent-foreground: 150 30% 12%;
 
     --destructive: 0 63% 31%;
     --destructive-foreground: 210 40% 98%;
@@ -105,18 +106,18 @@ All colors MUST be HSL.
     --available: 142 76% 36%;
     --available-foreground: 0 0% 100%;
 
-    --booked: 221 83% 53%;
-    --booked-foreground: 0 0% 100%;
+    --booked: 45 92% 50%;
+    --booked-foreground: 150 30% 12%;
 
     --full: 0 72% 51%;
     --full-foreground: 0 0% 100%;
 
-    --border: 217 33% 20%;
-    --input: 217 33% 20%;
-    --ring: 221 83% 53%;
+    --border: 150 15% 22%;
+    --input: 150 15% 18%;
+    --ring: 45 75% 55%;
 
-    --gradient-hero: linear-gradient(135deg, hsl(221 83% 20%) 0%, hsl(221 83% 35%) 100%);
-    --gradient-card: linear-gradient(180deg, hsl(217 33% 17%) 0%, hsl(217 33% 14%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(150 28% 10%) 0%, hsl(150 25% 16%) 100%);
+    --gradient-card: linear-gradient(180deg, hsl(150 25% 14%) 0%, hsl(150 25% 12%) 100%);
   }
 }
 
