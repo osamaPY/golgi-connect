@@ -337,37 +337,37 @@ const Gym = () => {
                             return (
                               <td key={day.toISOString()} className="p-3">
                                 {userHasBooked ? (
-                                  // ✅ USER'S BOOKING - Show "Cancel (You)" button with amber background
+                                  // ✅ USER'S BOOKING - Show "Cancel (You)" button - Golden theme
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    className="w-full bg-amber-100 hover:bg-amber-200 border-amber-300 text-amber-900 font-medium"
+                                    className="w-full bg-booked hover:bg-booked/90 border-primary/30 text-booked-foreground font-medium shadow-sm"
                                     onClick={() => userBooking && cancelBooking.mutate(userBooking.id)}
                                     disabled={cancelBooking.isPending || slotIsPast}
                                   >
                                     {slotIsPast ? 'Past' : (
                                       <span className="flex items-center gap-1">
-                                        <span className="h-2 w-2 rounded-full bg-amber-600"></span>
+                                        <span className="h-2 w-2 rounded-full bg-primary"></span>
                                         Cancel (You)
                                       </span>
                                     )}
                                   </Button>
                                 ) : slotIsPast ? (
                                   // ✅ PAST SLOT - Gray disabled badge
-                                  <Badge variant="outline" className="w-full justify-center text-xs bg-gray-100 text-gray-500">
+                                  <Badge variant="outline" className="w-full justify-center text-xs bg-muted text-muted-foreground">
                                     Past
                                   </Badge>
                                 ) : isFull ? (
                                   // ✅ FULL SLOT - Red disabled badge
-                                  <Badge variant="secondary" className="w-full justify-center bg-red-100 text-red-700 border-red-200">
+                                  <Badge variant="secondary" className="w-full justify-center bg-full text-full-foreground border-full/30">
                                     Full ({capacity}/{capacity})
                                   </Badge>
                                 ) : (
-                                  // ✅ AVAILABLE SLOT - Green "Book" button with live counter
+                                  // ✅ AVAILABLE SLOT - Elegant green "Book" button with live counter
                                   <Button
                                     variant="outline"
                                     size="sm"
-                                    className="w-full bg-green-100 hover:bg-green-200 border-green-300 text-green-900"
+                                    className="w-full bg-available/10 hover:bg-available/20 border-available/30 text-available-foreground font-medium shadow-sm"
                                     onClick={() => createBooking.mutate({ slotId: slot.id, date: day })}
                                     disabled={!canBook() || createBooking.isPending}
                                   >

@@ -6,7 +6,7 @@ import { useLocale } from '@/contexts/LocaleContext';
 import { useTranslation } from '@/lib/i18n';
 import {
   Home,
-  Shirt,
+  Droplet,
   Dumbbell,
   Package,
   User,
@@ -34,7 +34,7 @@ const Layout = ({ children }: LayoutProps) => {
 
   const navigation = [
     { name: t('nav.home'), href: '/', icon: Home },
-    { name: t('nav.laundry'), href: '/laundry', icon: Shirt },
+    { name: t('nav.laundry'), href: '/laundry', icon: Droplet },
     { name: t('nav.gym'), href: '/gym', icon: Dumbbell },
     { name: t('nav.parcels'), href: '/parcels', icon: Package },
   ];
